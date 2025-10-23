@@ -1,0 +1,12 @@
+# Path to the training images directory
+train: ./data/images/train
+
+# Path to the validation images directory
+val: ./data/images/val
+
+# Number of classes
+nc: 1
+
+# Class names (must be in alphabetical order for consistency)
+names: ['nike']
+

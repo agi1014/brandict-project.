@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brandict - Live Global Sentiment Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .spinner { border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .country { fill: #cbd5e1; stroke: #ffffff; stroke-width: 0.5; transition: fill 0.2s; cursor: pointer; }
+        .country:hover { fill: #64748b; }
+        .tooltip {
+            position: absolute; text-align: left; padding: 8px 12px; font-size: 13px;
+            background: #1e293b; color: white; border-radius: 8px; pointer-events: none;
+            opacity: 0; transition: opacity 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .gradient-text {
+            background: linear-gradient(to right, #4f46e5, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="container mx-auto p-4 md:p-6 max-w-7xl">
+        <header class="text-center my-8 md:my-12">
+            <h1 class="text-4xl md:text-5xl font-extrabold gradient-text">BRANDICT</h1>
+            <p class="text-lg text-slate-600 mt-2">The AI-Powered Global Brand Intelligence Platform</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-5 gap-6 md:gap-8">
+            <!-- Left Column: Camera and Controls -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-md border border-slate-200">
+                <h2 class="text-2xl font-bold mb-4 text-slate-900 text-center">Live Brand Scanner</h2>
+                <div class="relative bg-slate-900 rounded-lg overflow-hidden aspect-[16/10] mb-4 shadow-inner">
+                    <video id="camera-feed" class="w-full h-full object-cover" autoplay playsinline></video>
+                    <canvas id="overlay-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                </div>
+                <canvas id="capture-canvas" class="hidden"></canvas>
+                <button id="main-button" class="w-full py-3 px-4 rounded-lg text-white font-semibold bg-blue-600 hover:bg-blue-700 transition-all duration-300 disabled:bg-slate-400 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transform hover:-translate-y-0.5">
+                    Start Camera
+                </button>
+                <p id="status-text" class="text-center mt-3 text-sm text-slate-500">Enable your camera to start live detection.</p>
+            </div>
+
+            <!-- Right Column: Dashboard -->
+            <div id="dashboard-container" class="lg:col-span-3">
+                 <!-- Placeholder for when no brand is scanned -->
+                 <div id="dashboard-placeholder" class="bg-white p-6 rounded-2xl shadow-md border border-slate-200 h-full flex flex-col justify-center items-center text-center">
+                    <svg class="w-20 h-20 text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    <h3 class="mt-4 text-xl font-bold text-slate-800">Scan a Brand to Begin</h3>
+                    <p class="mt-1 text-slate-500 max-w-sm">The dashboard will appear here once a logo is detected from your camera feed.</p>
+                </div>
+                <!-- Loading State -->
+                <div id="dashboard-loader" class="bg-white p-6 rounded-2xl shadow-md border border-slate-200 h-full flex justify-center items-center hidden">
+                    <div class="spinner w-12 h-12 rounded-full border-4 border-slate-200"></div>
+                    <p class="ml-4 text-slate-600 font-semibold">Analyzing Brand Intelligence...</p>
+                </div>
+                <!-- Dashboard Content -->
+                <div id="dashboard-content" class="bg-white p-6 rounded-2xl shadow-md border border-slate-200 hidden">
+                    <div class="text-center mb-8">
+                        <h2 class="text-3xl font-extrabold text-slate-900" id="brand-name"></h2>
+                        <p class="text-slate-500">Live Global Social Media Sentiment Analysis</p>
+                    </div>
+                    <div class="space-y-8">
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-4">Overall Sentiment</h3>
+                            <div id="overall-sentiment-chart" class="space-y-3"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-slate-800 mb-4">Global Sentiment Map</h3>
+                            <div id="map-container" class="w-full bg-slate-100 rounded-lg overflow-hidden"></div>
+                            <div id="tooltip" class="tooltip"></div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xl font-bold text-slate-800" id="suggestions-title">AI Strategic Suggestions</h3>
+                                <button id="global-suggestions-btn" class="text-sm font-semibold text-blue-600 hover:text-blue-800 transition hidden">&larr; Back to Global</button>
+                            </div>
+                            <div id="suggestions-container" class="bg-slate-50 p-4 rounded-lg min-h-[120px] border border-slate-200">
+                                <p id="suggestions-text" class="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+<script>
+    // --- State & Config ---
+    let cameraActive = false;
+    let detectionLoop = null;
+    let detectedBrand = null;
+    let currentBrandData = null;
+    const API_BASE_URL = 'http://127.0.0.1:8000';
+    const countryNameMapping = { "USA": "United States of America", "UK": "United Kingdom" };
+
+    // --- DOM Elements ---
+    const video = document.getElementById('camera-feed');
+    const captureCanvas = document.getElementById('capture-canvas');
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const mainButton = document.getElementById('main-button');
+    const statusText = document.getElementById('status-text');
+    const dashboardContainer = document.getElementById('dashboard-container');
+    const dashboardPlaceholder = document.getElementById('dashboard-placeholder');
+    const dashboardLoader = document.getElementById('dashboard-loader');
+    const dashboardContent = document.getElementById('dashboard-content');
+    const suggestionsTitle = document.getElementById('suggestions-title');
+    const globalSuggestionsBtn = document.getElementById('global-suggestions-btn');
+
+    // --- Event Listeners ---
+    mainButton.addEventListener('click', handleMainButtonClick);
+    globalSuggestionsBtn.addEventListener('click', () => fetchGlobalSuggestions(currentBrandData));
+
+    // --- Core Application Logic ---
+    async function handleMainButtonClick() {
+        if (!cameraActive) {
+            await initCamera();
+        } else if (detectedBrand) {
+            stopDetectionLoop();
+            await fetchBrandData(detectedBrand);
+        }
+    }
+
+    async function initCamera() {
+        try {
+            statusText.textContent = "Requesting camera...";
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                [captureCanvas, overlayCanvas].forEach(c => {
+                    c.width = video.videoWidth; c.height = video.videoHeight;
+                });
+                cameraActive = true;
+                mainButton.textContent = "Detecting...";
+                mainButton.disabled = true;
+                statusText.textContent = "Camera active. Point at a logo.";
+                startDetectionLoop();
+            };
+        } catch (err) {
+            statusText.textContent = "Camera access denied. Please enable permissions.";
+        }
+    }
+
+    function startDetectionLoop() {
+        if (detectionLoop) return;
+        detectionLoop = setInterval(async () => {
+            if (!cameraActive) return;
+            captureCanvas.getContext('2d').drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+            captureCanvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('image_file', blob, 'camera_frame.jpg');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/detect_brand_from_camera/`, { method: 'POST', body: formData });
+                    const data = await response.json();
+                    drawDetections(data.detections || []);
+                } catch (error) {
+                    drawDetections([]);
+                }
+            }, 'image/jpeg');
+        }, 500);
+    }
+
+    function stopDetectionLoop() {
+        clearInterval(detectionLoop);
+        detectionLoop = null;
+        overlayCanvas.getContext('2d').clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+
+    function drawDetections(detections) {
+        const overlayCtx = overlayCanvas.getContext('2d');
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        
+        detectedBrand = null;
+        mainButton.disabled = true;
+        mainButton.textContent = "Detecting...";
+
+        if (detections.length > 0) {
+            detectedBrand = detections[0].brand;
+            mainButton.disabled = false;
+            mainButton.textContent = `Analyze ${detectedBrand.toUpperCase()} Dashboard`;
+            statusText.textContent = `${detectedBrand.toUpperCase()} detected! Click to analyze.`;
+
+            detections.forEach(det => {
+                const [x1, y1, x2, y2] = det.box;
+                overlayCtx.strokeStyle = '#3b82f6';
+                overlayCtx.lineWidth = 4;
+                overlayCtx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                
+                overlayCtx.fillStyle = '#3b82f6';
+                overlayCtx.font = 'bold 24px Inter';
+                overlayCtx.textBaseline = 'bottom';
+                overlayCtx.fillText(det.brand.toUpperCase(), x1, y1 - 5);
+            });
+        }
+    }
+
+    // --- Dashboard Data and Rendering ---
+    async function fetchBrandData(brandName) {
+        mainButton.disabled = true;
+        statusText.textContent = `Fetching dashboard for ${brandName}...`;
+        
+        dashboardPlaceholder.classList.add('hidden');
+        dashboardLoader.classList.remove('hidden');
+        dashboardContent.classList.add('hidden');
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/get_brand_sentiment/${brandName.toLowerCase()}`);
+            currentBrandData = await response.json();
+            if (currentBrandData.error) throw new Error(currentBrandData.error);
+            
+            renderDashboard(currentBrandData);
+            await fetchGlobalSuggestions(currentBrandData);
+        } catch (error) {
+            statusText.textContent = `Error fetching data for ${brandName}.`;
+        } finally {
+            mainButton.disabled = false;
+        }
+    }
+
+    function renderDashboard(data) {
+        dashboardLoader.classList.add('hidden');
+        dashboardContent.classList.remove('hidden');
+        document.getElementById('brand-name').textContent = data.brand.charAt(0).toUpperCase() + data.brand.slice(1);
+
+        const chartContainer = document.getElementById('overall-sentiment-chart');
+        chartContainer.innerHTML = '';
+        const total = Object.values(data.overall_sentiment).reduce((a, b) => a + b, 0);
+        const sentiments = [
+            { label: 'Positive', value: data.overall_sentiment.positive, color: 'bg-emerald-500' },
+            { label: 'Negative', value: data.overall_sentiment.negative, color: 'bg-red-500' },
+            { label: 'Neutral', value: data.overall_sentiment.neutral, color: 'bg-slate-400' }
+        ];
+
+        sentiments.forEach(s => {
+            const percentage = total > 0 ? ((s.value / total) * 100).toFixed(1) : 0;
+            chartContainer.innerHTML += `
+                <div class="flex items-center text-sm">
+                    <div class="w-4 h-4 rounded-full ${s.color} mr-3"></div>
+                    <span class="w-20 font-medium text-slate-600">${s.label}</span>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 flex-1">
+                        <div class="${s.color} h-2.5 rounded-full" style="width: ${percentage}%"></div>
+                    </div>
+                    <span class="w-16 text-right font-semibold text-slate-700">${percentage}%</span>
+                </div>`;
+        });
+        renderWorldMap(data.regional_sentiment, data.brand);
+    }
+    
+    // --- Suggestions Logic ---
+    async function fetchGlobalSuggestions(sentimentData) {
+        suggestionsTitle.textContent = 'Global Strategic Suggestions';
+        globalSuggestionsBtn.classList.add('hidden');
+        await fetchSuggestions(`${API_BASE_URL}/get_global_suggestions/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sentimentData)
+        });
+    }
+
+    async function fetchCountrySuggestions(brandName, countryName) {
+        suggestionsTitle.textContent = `Strategic Suggestions for ${countryName}`;
+        globalSuggestionsBtn.classList.remove('hidden');
+        await fetchSuggestions(`${API_BASE_URL}/get_country_suggestion/${brandName}/${countryName}`, { method: 'POST' });
+    }
+    
+    async function fetchSuggestions(url, options) {
+        const suggestionsText = document.getElementById('suggestions-text');
+        suggestionsText.innerHTML = `<div class="flex items-center"><div class="spinner w-5 h-5 mr-3"></div><span>Generating AI suggestions...</span></div>`;
+        try {
+            const response = await fetch(url, options);
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
+            suggestionsText.textContent = data.suggestions;
+        } catch (error) {
+            suggestionsText.textContent = 'Could not generate AI suggestions at this time.';
+        }
+    }
+
+    // --- D3 Map Rendering ---
+    function renderWorldMap(countryData, brandName) {
+        const container = document.getElementById('map-container');
+        container.innerHTML = '';
+        const width = container.clientWidth;
+        const height = width * 0.6;
+        const svg = d3.select("#map-container").append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+        const tooltip = d3.select("#tooltip");
+        const projection = d3.geoMercator().scale(width / 6.5).translate([width / 2, height / 1.6]);
+        const path = d3.geoPath().projection(projection);
+        const colorScale = d3.scaleLinear().domain([-1, 0, 1]).range(["#ef4444", "#cbd5e1", "#22c55e"]);
+
+        fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+            .then(response => response.json())
+            .then(world => {
+                const countries = topojson.feature(world, world.objects.countries);
+                svg.selectAll(".country").data(countries.features).enter().append("path")
+                    .attr("class", "country")
+                    .attr("d", path)
+                    .attr("fill", d => {
+                        const dataName = Object.keys(countryNameMapping).find(k=>countryNameMapping[k]===d.properties.name) || d.properties.name;
+                        const countryInfo = countryData[dataName];
+                        if (countryInfo) {
+                            const netSentiment = (countryInfo.positive - countryInfo.negative) / 100;
+                            return colorScale(netSentiment);
+                        }
+                        return '#cbd5e1';
+                    })
+                    .on("mouseover", function(event, d) {
+                        d3.select(this).style("fill", "#64748b");
+                        tooltip.transition().duration(200).style("opacity", 1);
+                        const dataName = Object.keys(countryNameMapping).find(k=>countryNameMapping[k]===d.properties.name) || d.properties.name;
+                        const countryInfo = countryData[dataName];
+                        let tooltipHtml = `<strong>${d.properties.name}</strong>`;
+                        if (countryInfo) {
+                            tooltipHtml += `<br/>Pos: ${countryInfo.positive}% | Neg: ${countryInfo.negative}%<br/><span style='color:#9ca3af;'>(Click for suggestions)</span>`;
+                        } else {
+                            tooltipHtml += `<br/><span style='color:#9ca3af;'>No data available</span>`;
+                        }
+                        tooltip.html(tooltipHtml).style("left", `${event.pageX + 15}px`).style("top", `${event.pageY - 15}px`);
+                    })
+                    .on("mouseout", function(event, d) {
+                        d3.select(this).style("fill", d => {
+                           const dataName = Object.keys(countryNameMapping).find(k=>countryNameMapping[k]===d.properties.name) || d.properties.name;
+                           const countryInfo = countryData[dataName];
+                           return countryInfo ? colorScale((countryInfo.positive - countryInfo.negative) / 100) : '#cbd5e1';
+                        });
+                        tooltip.transition().duration(500).style("opacity", 0);
+                    })
+                    .on("click", function(event, d) {
+                        const dataName = Object.keys(countryNameMapping).find(k=>countryNameMapping[k]===d.properties.name) || d.properties.name;
+                        if (countryData[dataName]) {
+                            fetchCountrySuggestions(brandName, dataName);
+                        }
+                    });
+            });
+    }
+</script>
+</body>
+</html>
+

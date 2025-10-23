@@ -1,0 +1,23 @@
+# Core FastAPI Server
+fastapi
+uvicorn[standard]
+python-multipart
+
+# AI & ML Libraries (CPU-only versions for faster build)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
+torchaudio==2.2.2+cpu
+
+# Other libraries
+ultralytics
+easyocr
+transformers
+sentencepiece
+protobuf
+tiktoken
+pandas
+requests
+
+# Monitoring
+prometheus-fastapi-instrumentator
